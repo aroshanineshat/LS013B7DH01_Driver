@@ -9,7 +9,7 @@ module clk_divider #(
     parameter integer clk_divider  = 12
 )
 (
-    input wire Clk_12MHz,
+    input wire clk_12mhz,
     output wire clk_output
 );
 
