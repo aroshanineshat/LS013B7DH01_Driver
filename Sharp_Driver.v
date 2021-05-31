@@ -29,12 +29,12 @@ module Sharp_Driver(
     localparam integer data_bit_count = 144;
     localparam integer dummy_bit_count = 8;
 
-    localparam integer STATE_SETUP          = 5;
-    localparam integer STATE_SELECT_MODE    = 0;
-    localparam integer STATE_SELECT_ADDRESS = 1;
-    localparam integer STATE_TRANSF_DATA    = 2;
-    localparam integer STATE_TRANSF_DUMMY   = 3;
-    localparam integer STATE_HOLD           = 4;
+    localparam integer STATE_SETUP          = 0;
+    localparam integer STATE_SELECT_MODE    = 1;
+    localparam integer STATE_SELECT_ADDRESS = 2;
+    localparam integer STATE_TRANSF_DATA    = 3;
+    localparam integer STATE_TRANSF_DUMMY   = 4;
+    localparam integer STATE_HOLD           = 5;
 
     localparam integer MODE_STATIC  = 'h00; // 0hxxxxx000 M0->0, M1->0, M2->0 -> Static mode
     localparam integer MODE_UPDATE  = 'h01; // 0hxxxxx001 M0->1, M1->0, M2->0 -> Update mode
@@ -44,7 +44,7 @@ module Sharp_Driver(
     reg [2:0] CURRENT_STATE;
     reg [2:0] CURRENT_MODE;
     reg [7:0] ADDR_r;
-    reg [2:0] DATA_r;
+    reg [143:0] DATA_r;
 
     reg SCLK_r;
     reg SCS_r;
@@ -63,21 +63,31 @@ module Sharp_Driver(
     //State 4 ->  16 clks for dummy data
     //State 5 ->   8 clks for thSCS (hold)
     reg [31:0] clk_counter;
+    //------------------------------
+
+    //===============================
+    //Data Buffer
+    //===============================
+    reg [143:0] outputBuffer; 
+    //-------------------------------
+
+  
 
     //================================
     //Initialization of Vars
     //================================
     initial begin
-        SCS_r = 0;
+        SCS_r = 1;
         SCLK_r = 0;
         SI_r  = 0;
+        outputBuffer = 0;
 
         ADDR_r = 'd50;
-        DATA_r = 'hFFFF_FFFF_FFFF_FFFF_FFFF_FFFF; //dummy data for the image
+        DATA_r = 'hFFFF_0000_0000_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF; //dummy data for the image
         clk_counter = 0;
 
         CURRENT_STATE = STATE_SETUP;
-        CURRENT_MODE  = MODE_STATIC;
+        CURRENT_MODE  = MODE_UPDATE;
     end
     //================================
 
@@ -101,47 +111,67 @@ module Sharp_Driver(
             the rest bits is recommended to be 0
     */
     always @(posedge clk_1mhz) begin
+              SI_r <= outputBuffer[0];
+    end
+
+    always @(posedge clk_1mhz) begin
         case (CURRENT_STATE)
 	          STATE_SETUP: begin // state 0 - 8 clks
-              if (clk_counter == 8) begin
-                CURRENT_STATE = STATE_SELECT_MODE;
+              if (clk_counter == 8) begin //8
+                CURRENT_STATE <= STATE_SELECT_MODE;
+                outputBuffer <= CURRENT_MODE;
+              end else begin
+                outputBuffer <= outputBuffer >> 1;
               end
 	          end
             STATE_SELECT_MODE: begin // state 1 - 8 clks
-              if (clk_counter == 16) begin
-                CURRENT_STATE = STATE_SELECT_ADDRESS;
+              if (clk_counter == 16) begin // 16
+                CURRENT_STATE <= STATE_SELECT_ADDRESS;
+                outputBuffer <= 50;
+              end else begin
+                outputBuffer <= outputBuffer >> 1;
               end
+
             end
             STATE_SELECT_ADDRESS: begin // state 2 - 8clks
-              if (clk_counter == 24) begin
-                CURRENT_STATE = STATE_TRANSF_DATA;
+              if (clk_counter == 24) begin // 24
+                CURRENT_STATE <= STATE_TRANSF_DATA;
+                outputBuffer <= DATA_r;
+              end else begin
+                outputBuffer <= outputBuffer >> 1;
               end
+
                 
             end
             STATE_TRANSF_DATA: begin // state 3 - 144 clks
-              if (clk_counter == 168) begin
-                CURRENT_STATE = STATE_TRANSF_DUMMY;
-              end
-                
+              if (clk_counter == 168) begin // 168
+                CURRENT_STATE <= STATE_TRANSF_DUMMY;
+                outputBuffer <= 0;
+              end else begin
+                outputBuffer <= outputBuffer >> 1;
+              end 
             end
 	          STATE_TRANSF_DUMMY:begin // state 4 - 16 clks
-              if (clk_counter == 184) begin
-                CURRENT_STATE = STATE_HOLD;
+              if (clk_counter == 184) begin//184
+                CURRENT_STATE <= STATE_HOLD;
+                outputBuffer <= 0;
               end
 	          end
 	          STATE_HOLD: begin // state 5 -  4 clks
-              if (clk_counter == 188) begin
-                CURRENT_STATE = STATE_SETUP;
+              if (clk_counter == 188) begin // 188
+                CURRENT_STATE <= STATE_SETUP;
               end
 	          end
             default: begin
-              CURRENT_STATE = STATE_HOLD;
+              CURRENT_STATE <= STATE_HOLD;
             end
         endcase
+        //outputBuffer <= outputBuffer >> 1;
     end 
 
     always @(posedge clk_1mhz) begin
-	    if (clk_counter < 188) begin
+      SCLK_r <= clk_1mhz;
+	    if (clk_counter < 188) begin //188
 		    clk_counter <= clk_counter + 1;
 	    end else begin 
         clk_counter <= 1;
