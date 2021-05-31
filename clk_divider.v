@@ -13,19 +13,20 @@ module clk_divider #(
     output wire clk_output
 );
 
-    reg clk_counter;
+    reg [15:0] clk_counter;
     reg clk_output_r;
 
     initial begin 
         clk_counter = 0;
+        clk_output_r = 0;
     end
 
-    always @(posedge Clk_12MHz) begin
+    always @(posedge clk_12mhz) begin
         if (clk_counter >= (clk_divider / 2)) begin
-            clk_output_r ~= clk_output_r;
+            clk_output_r= ~clk_output_r;
             clk_counter = 1;
         end else begin
-            clk_output_r = clk_output_r + 1;
+            clk_counter = clk_counter + 1;
         end
     end 
 
