@@ -30,14 +30,15 @@ module Sharp_Driver(
     localparam integer data_bit_count = 144;
     localparam integer dummy_bit_count = 8;
 
+    localparam integer STATE_SETUP          = 5
     localparam integer STATE_SELECT_MODE    = 0;
     localparam integer STATE_SELECT_ADDRESS = 1;
     localparam integer STATE_TRANSF_DATA    = 2;
     localparam integer STATE_TRANSF_DUMMY   = 3;
-    localparam integer STATE_IDLE           = 4;
+    localparam integer STATE_HOLD           = 4;
 
     localparam integer MODE_STATIC  = 0x00; // 0hxxxxx000 M0->0, M1->0, M2->0 -> Static mode
-    localparam integer MODE_DYNAMIC = 0x01; // 0hxxxxx001 M0->1, M1->0, M2->0 -> Dynamic mode
+    localparam integer MODE_UPDATE  = 0x01; // 0hxxxxx001 M0->1, M1->0, M2->0 -> Update mode
 
     wire clk_1mhz;
 
@@ -50,7 +51,19 @@ module Sharp_Driver(
     reg SCS_r;
     reg SI_r;
 
-    reg [0+:32] counter;
+    //===============================
+    //State Counter (32 bit)
+    //===============================
+    //the counter will count the number of clocks
+    //to keep track of the state 
+    //there are 6 states
+    //State 0 ->   8 clks for tsSCS (setup)
+    //State 1 ->   8 clks for modes
+    //State 2 ->   8 clks for row address
+    //State 3 -> 144 clks for data
+    //State 4 ->  16 clks for dummy data
+    //State 5 ->   8 clks for thSCS (hold)
+    reg [0+:32] clk_counter;
 
     //================================
     //Initialization of Vars
@@ -90,20 +103,48 @@ module Sharp_Driver(
     */
     always @(posedge clk_1mhz) begin
         case (CURRENT_STATE) begin
-            STATE_IDLE: begin
-                SCK_r <= 1;
+	          STATE_SETUP: begin // 8 clks
+              if (clk_counter == 8) begin
+                CURRENT_STATE = STATE_SELECT_MODE
+              end
+	          end
+            STATE_SELECT_MODE: begin // 8 clks
+              if (clk_counter == 8) begin
+                CURRENT_STATE = STATE_SELECT_ADDRESS
+              end
             end
-            STATE_SELECT_MODE: begin
+            STATE_SELECT_ADDRESS: begin // 8clks
+              if (clk_counter == 8) begin
+                CURRENT_STATE = STATE_SELECT_MODE
+              end
                 
             end
-            STATE_SELECT_ADDRESS: begin
+            STATE_TRANSF_DATA: begin // 144 clks
+              if (clk_counter == 8) begin
+                CURRENT_STATE = STATE_SELECT_MODE
+              end
                 
             end
-            STATE_TRANSF_DATA: begin
-                
-            end
+	          STATE_TRANSF_DUMMY:begin // 16 clks
+              if (clk_counter == 8) begin
+                CURRENT_STATE = STATE_SELECT_MODE
+              end
+	          end
+	          STATE_HOLD: begin // 4 clks
+              if (clk_counter == 8) begin
+                CURRENT_STATE = STATE_SELECT_MODE
+              end
+	          end
         endcase
     end 
+
+    always @(posedge clk_1mhz) begin
+	    if (clk_counter < 188) begin
+		    clk_counter <= clk_counter + 1;
+	    end else begin 
+        clk_counter <= 1
+      end
+    end
 
     assign SCK = SCK_r;
     assign SCS = SCR_r;
