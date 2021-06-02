@@ -21,7 +21,8 @@ module Sharp_Driver(
 
     output wire SCLK,
     output wire SI,
-    output wire SCS
+    output wire SCS,
+    output wire LED
 );
 
     localparam integer mode_bit_count = 8; 
@@ -36,8 +37,8 @@ module Sharp_Driver(
     localparam integer STATE_TRANSF_DUMMY   = 4;
     localparam integer STATE_HOLD           = 5;
 
-    localparam integer MODE_STATIC  = 'h00; // 0hxxxxx000 M0->0, M1->0, M2->0 -> Static mode
-    localparam integer MODE_UPDATE  = 'h01; // 0hxxxxx001 M0->1, M1->0, M2->0 -> Update mode
+    reg [2:0] MODE_STATIC  = 3'b000; // 0hxxxxx000 M0->0, M1->0, M2->0 -> Static mode
+    reg [2:0] MODE_UPDATE  = 3'b001; // 0hxxxxx001 M0->1, M1->0, M2->0 -> Update mode
 
     wire clk_1mhz;
 
@@ -82,7 +83,7 @@ module Sharp_Driver(
         SI_r  = 0;
         outputBuffer = 0;
 
-        ADDR_r = 'd50;
+        ADDR_r = 'd0;
         DATA_r = 'hFFFF_0000_0000_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF; //dummy data for the image
         clk_counter = 0;
 
@@ -101,6 +102,30 @@ module Sharp_Driver(
         .clk_output (clk_1mhz)
     );
     //================================
+		clk_divider #(
+	  	.clk_divider (12000000)
+		) clk1hz (
+			.clk_12mhz (clk_12mhz),
+			.clk_output (LED)
+		);
+
+		//================================
+		//Generating EXTCOMIN Signal (60Hz)
+		//================================
+		wire clk_60hz_vcom;
+		clk_divider #(
+			.clk_divider (200000)
+		) clk_60hz (
+			.clk_12mhz(clk_12mhz),
+			.clk_output(clk_60hz_vcom)
+		);
+
+		always @(posedge clk_60hz_vcom) begin
+				MODE_UPDATE[1] <= ~MODE_UPDATE[1];
+				MODE_STATIC[1] <= ~MODE_STATIC[1];
+		end
+
+	
 
     /*
         Select Mode options:
@@ -127,7 +152,7 @@ module Sharp_Driver(
             STATE_SELECT_MODE: begin // state 1 - 8 clks
               if (clk_counter == 16) begin // 16
                 CURRENT_STATE <= STATE_SELECT_ADDRESS;
-                outputBuffer <= 50;
+                outputBuffer <= ADDR_r;
               end else begin
                 outputBuffer <= outputBuffer >> 1;
               end
@@ -154,12 +179,20 @@ module Sharp_Driver(
 	          STATE_TRANSF_DUMMY:begin // state 4 - 16 clks
               if (clk_counter == 184) begin//184
                 CURRENT_STATE <= STATE_HOLD;
+                SCS_r <= 0;
+                if (ADDR_r < 168) begin
+	                ADDR_r <= ADDR_r + 1;
+                end else begin
+	                ADDR_r <= 0;
+                end
+                
                 outputBuffer <= 0;
               end
 	          end
 	          STATE_HOLD: begin // state 5 -  4 clks
               if (clk_counter == 188) begin // 188
                 CURRENT_STATE <= STATE_SETUP;
+                SCS_r <= 1;
               end
 	          end
             default: begin
@@ -169,13 +202,17 @@ module Sharp_Driver(
         //outputBuffer <= outputBuffer >> 1;
     end 
 
+		always @(clk_1mhz) begin
+			SCLK_r <= clk_1mhz;
+		end
+
     always @(posedge clk_1mhz) begin
-      SCLK_r <= clk_1mhz;
-	    if (clk_counter < 188) begin //188
-		    clk_counter <= clk_counter + 1;
-	    end else begin 
-        clk_counter <= 1;
-      end
+      
+			if (clk_counter < 188) begin //188
+				clk_counter <= clk_counter + 1;
+			end else begin 
+    			clk_counter <= 1;
+			end
     end
 
     assign SCLK = SCLK_r;

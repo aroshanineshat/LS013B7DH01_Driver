@@ -33,7 +33,7 @@ module tb;
   );
 
   initial begin
-      #5000 $finish;
+      #10000 $finish;
   end
 
   initial

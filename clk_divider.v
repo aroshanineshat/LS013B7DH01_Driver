@@ -13,7 +13,7 @@ module clk_divider #(
     output wire clk_output
 );
 
-    reg [15:0] clk_counter;
+    reg [31:0] clk_counter;
     reg clk_output_r;
 
     initial begin 
