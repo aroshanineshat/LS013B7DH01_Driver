@@ -22,7 +22,8 @@ module Sharp_Driver(
     output wire SCLK,
     output wire SI,
     output wire SCS,
-    output wire LED
+    output wire LED,
+    output wire EXTCOMIN
 );
 
     localparam integer mode_bit_count = 8; 
@@ -109,22 +110,15 @@ module Sharp_Driver(
 			.clk_output (LED)
 		);
 
-		//================================
-		//Generating EXTCOMIN Signal (60Hz)
-		//================================
-		wire clk_60hz_vcom;
-		clk_divider #(
-			.clk_divider (200000)
-		) clk_60hz (
-			.clk_12mhz(clk_12mhz),
-			.clk_output(clk_60hz_vcom)
-		);
-
-		always @(posedge clk_60hz_vcom) begin
-				MODE_UPDATE[1] <= ~MODE_UPDATE[1];
-				MODE_STATIC[1] <= ~MODE_STATIC[1];
-		end
-
+	//================================
+	//Generating EXTCOMIN Signal (60Hz)
+	//================================
+	clk_divider #(
+		.clk_divider (200000)
+	) clk_60hz (
+		.clk_12mhz(clk_12mhz),
+		.clk_output(EXTCOMIN)
+	);
 	
 
     /*
