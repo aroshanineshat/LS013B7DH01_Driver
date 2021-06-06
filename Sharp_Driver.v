@@ -114,7 +114,7 @@ module Sharp_Driver(
 	//Generating EXTCOMIN Signal (60Hz)
 	//================================
 	clk_divider #(
-		.clk_divider (200000)
+		.clk_divider (200000) //200000
 	) clk_60hz (
 		.clk_12mhz(clk_12mhz),
 		.clk_output(EXTCOMIN)
@@ -146,7 +146,7 @@ module Sharp_Driver(
             STATE_SELECT_MODE: begin // state 1 - 8 clks
               if (clk_counter == 16) begin // 16
                 CURRENT_STATE <= STATE_SELECT_ADDRESS;
-                outputBuffer <= ADDR_r;
+                outputBuffer <= 50;
               end else begin
                 outputBuffer <= outputBuffer >> 1;
               end
@@ -174,7 +174,7 @@ module Sharp_Driver(
               if (clk_counter == 184) begin//184
                 CURRENT_STATE <= STATE_HOLD;
                 SCS_r <= 0;
-                if (ADDR_r < 168) begin
+                if (ADDR_r < 50) begin
 	                ADDR_r <= ADDR_r + 1;
                 end else begin
 	                ADDR_r <= 0;
